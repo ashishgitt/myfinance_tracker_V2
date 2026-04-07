@@ -47,25 +47,31 @@ class NotificationService {
   }
 
   // ─── Daily Reminder ───────────────────────────────────────────
-  static Future<void> scheduleDailyReminder(
-      int hour, int minute) async {
-    try {
-      await _plugin.cancel(_dailyReminderId);
-      final scheduledDate = _nextInstanceOfTime(hour, minute);
-      await _plugin.zonedSchedule(
-        _dailyReminderId,
-        'MyFinance Tracker 💰',
-        "Don't forget to log your transactions today!",
-        scheduledDate,
-        _details,
-        androidScheduleMode:
-            AndroidScheduleMode.inexactAllowWhileIdle,
-        matchDateTimeComponents: DateTimeComponents.time,
-      );
-    } catch (e) {
-      debugPrint('scheduleDailyReminder error: $e');
-    }
+static Future<void> scheduleDailyReminder(
+    int hour, int minute) async {
+  try {
+    await _plugin.cancel(_dailyReminderId);
+    final scheduledDate = _nextInstanceOfTime(hour, minute);
+
+    await _plugin.zonedSchedule(
+      _dailyReminderId,
+      'MyFinance Tracker 💰',
+      "Don't forget to log your transactions today!",
+      scheduledDate,
+      _details,
+      androidScheduleMode:
+          AndroidScheduleMode.inexactAllowWhileIdle,
+      matchDateTimeComponents: DateTimeComponents.time,
+
+      // ✅ ADD THIS LINE (FIX)
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+    );
+  } catch (e) {
+    debugPrint('scheduleDailyReminder error: $e');
   }
+}
+
 
   static Future<void> cancelDailyReminder() async {
     await _plugin.cancel(_dailyReminderId);
