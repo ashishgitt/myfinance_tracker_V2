@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
 
+/// Fix 2: Proper auth state management — no infinite loop.
+/// _isAuthenticated is set to true on success and only reset
+/// when the lifecycle observer triggers it externally.
 class AppLockScreen extends StatefulWidget {
   final VoidCallback onAuthenticated;
   const AppLockScreen({super.key, required this.onAuthenticated});
@@ -12,6 +15,7 @@ class AppLockScreen extends StatefulWidget {
 class _AppLockScreenState extends State<AppLockScreen> {
   final _auth = LocalAuthentication();
   bool _isAuthenticating = false;
+  bool _authenticated = false; // Fix 2: guard flag
   String? _errorMessage;
 
   @override
@@ -22,33 +26,46 @@ class _AppLockScreenState extends State<AppLockScreen> {
   }
 
   Future<void> _authenticate() async {
-    if (_isAuthenticating) return;
+    // Fix 2: Never re-trigger if already authenticated in this session
+    if (_isAuthenticating || _authenticated) return;
+
     setState(() {
       _isAuthenticating = true;
       _errorMessage = null;
     });
+
     try {
-      final canAuth = await _auth.canCheckBiometrics ||
+      final supported = await _auth.canCheckBiometrics ||
           await _auth.isDeviceSupported();
-      if (!canAuth) {
-        // No biometric — unlock immediately
-        if (mounted) widget.onAuthenticated();
+
+      if (!supported) {
+        // No biometric hardware — unlock immediately
+        if (mounted) {
+          _authenticated = true;
+          widget.onAuthenticated();
+        }
         return;
       }
-      final didAuth = await _auth.authenticate(
-        localizedReason:
-            'Authenticate to open MyFinance Tracker',
+
+      final ok = await _auth.authenticate(
+        localizedReason: 'Authenticate to open MyFinance Tracker',
         options: const AuthenticationOptions(
           biometricOnly: false,
-          stickyAuth: true,
+          stickyAuth: true,   // prevents multiple prompts
           sensitiveTransaction: true,
         ),
       );
-      if (mounted && didAuth) widget.onAuthenticated();
+
+      if (mounted && ok) {
+        _authenticated = true; // Fix 2: set guard BEFORE calling callback
+        widget.onAuthenticated();
+      } else if (mounted && !ok) {
+        setState(() =>
+            _errorMessage = 'Authentication failed. Tap Try Again.');
+      }
     } catch (e) {
       if (mounted) {
-        setState(() => _errorMessage =
-            'Authentication failed. Please try again.');
+        setState(() => _errorMessage = 'Error: ${e.toString().split('\n').first}');
       }
     } finally {
       if (mounted) setState(() => _isAuthenticating = false);
@@ -83,24 +100,22 @@ class _AppLockScreenState extends State<AppLockScreen> {
                         .headlineSmall
                         ?.copyWith(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
-                Text(
-                  'Authenticate to continue',
-                  style: TextStyle(color: cs.onSurfaceVariant),
-                ),
+                Text('Authenticate to continue',
+                    style: TextStyle(color: cs.onSurfaceVariant)),
                 const SizedBox(height: 40),
                 if (_isAuthenticating)
-                  const CircularProgressIndicator()
+                  Column(children: [
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: 12),
+                    Text('Waiting for authentication…',
+                        style: TextStyle(color: cs.onSurfaceVariant)),
+                  ])
                 else
-                  Column(
-                    children: [
-                      Icon(Icons.fingerprint,
-                          size: 56, color: cs.primary),
-                      const SizedBox(height: 8),
-                      Text('Use fingerprint or face unlock',
-                          style: TextStyle(
-                              color: cs.onSurfaceVariant)),
-                    ],
-                  ),
+                  Icon(Icons.fingerprint, size: 64, color: cs.primary),
+                const SizedBox(height: 12),
+                if (!_isAuthenticating)
+                  Text('Use fingerprint or face unlock',
+                      style: TextStyle(color: cs.onSurfaceVariant)),
                 if (_errorMessage != null) ...[
                   const SizedBox(height: 24),
                   Container(
@@ -110,8 +125,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(_errorMessage!,
-                        style:
-                            TextStyle(color: cs.onErrorContainer),
+                        style: TextStyle(color: cs.onErrorContainer),
                         textAlign: TextAlign.center),
                   ),
                 ],
@@ -122,8 +136,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
                     icon: const Icon(Icons.refresh),
                     label: const Text('Try Again'),
                     style: FilledButton.styleFrom(
-                        minimumSize:
-                            const Size(200, 48)),
+                        minimumSize: const Size(200, 48)),
                   ),
               ],
             ),

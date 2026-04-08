@@ -30,18 +30,20 @@ class BudgetProvider extends ChangeNotifier {
   }
 
   Future<void> setOverallBudget(double amount, int month, int year) async {
-    final existing = _budgets.where((b) => b.isOverall).toList();
-    final id = existing.isNotEmpty ? existing.first.id : const Uuid().v4();
-    final budget = BudgetModel(id: id, categoryId: null, amount: amount, month: month, year: year);
-    await _db.insertOrUpdateBudget(budget.toMap());
+    final ex = _budgets.where((b) => b.isOverall).toList();
+    final id = ex.isNotEmpty ? ex.first.id : const Uuid().v4();
+    await _db.insertOrUpdateBudget(
+        BudgetModel(id: id, amount: amount, month: month, year: year).toMap());
     await loadBudgets(month, year);
   }
 
-  Future<void> setCategoryBudget(String catId, double amount, int month, int year) async {
-    final existing = _budgets.where((b) => b.categoryId == catId).toList();
-    final id = existing.isNotEmpty ? existing.first.id : const Uuid().v4();
-    final budget = BudgetModel(id: id, categoryId: catId, amount: amount, month: month, year: year);
-    await _db.insertOrUpdateBudget(budget.toMap());
+  Future<void> setCategoryBudget(
+      String catId, double amount, int month, int year) async {
+    final ex = _budgets.where((b) => b.categoryId == catId).toList();
+    final id = ex.isNotEmpty ? ex.first.id : const Uuid().v4();
+    await _db.insertOrUpdateBudget(BudgetModel(
+            id: id, categoryId: catId, amount: amount, month: month, year: year)
+        .toMap());
     await loadBudgets(month, year);
   }
 
@@ -58,7 +60,8 @@ class SavingsProvider extends ChangeNotifier {
   List<SavingsGoalModel> _goals = [];
 
   List<SavingsGoalModel> get goals => _goals;
-  List<SavingsGoalModel> get activeGoals => _goals.where((g) => !g.isCompleted).toList();
+  List<SavingsGoalModel> get activeGoals =>
+      _goals.where((g) => !g.isCompleted).toList();
 
   Future<void> loadGoals() async {
     final rows = await _db.getAllSavingsGoals();
@@ -80,44 +83,13 @@ class SavingsProvider extends ChangeNotifier {
     final goal = _goals.firstWhere((g) => g.id == goalId);
     final updated = goal.copyWith(savedAmount: goal.savedAmount + amount);
     final completed = updated.savedAmount >= updated.targetAmount;
-    await _db.updateSavingsGoal(updated.copyWith(isCompleted: completed).toMap());
+    await _db.updateSavingsGoal(
+        updated.copyWith(isCompleted: completed).toMap());
     await loadGoals();
   }
 
   Future<void> deleteGoal(String id) async {
     await _db.deleteSavingsGoal(id);
     await loadGoals();
-  }
-}
-
-// ─── Debt Provider ────────────────────────────────────────────────────────────
-class DebtProvider extends ChangeNotifier {
-  final _db = DatabaseHelper();
-  List<DebtModel> _debts = [];
-
-  List<DebtModel> get debts => _debts;
-  List<DebtModel> get iOwe => _debts.where((d) => d.type == 'owe' && !d.isSettled).toList();
-  List<DebtModel> get owedToMe => _debts.where((d) => d.type == 'owed' && !d.isSettled).toList();
-
-  Future<void> loadDebts() async {
-    final rows = await _db.getAllDebts();
-    _debts = rows.map((r) => DebtModel.fromMap(r)).toList();
-    notifyListeners();
-  }
-
-  Future<void> addDebt(DebtModel debt) async {
-    await _db.insertDebt(debt.toMap());
-    await loadDebts();
-  }
-
-  Future<void> markSettled(String id) async {
-    final debt = _debts.firstWhere((d) => d.id == id);
-    await _db.updateDebt(debt.copyWith(isSettled: true).toMap());
-    await loadDebts();
-  }
-
-  Future<void> deleteDebt(String id) async {
-    await _db.deleteDebt(id);
-    await loadDebts();
   }
 }

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../providers/transaction_provider.dart';
 import '../../providers/category_provider.dart';
 import '../../providers/budget_savings_debt_providers.dart';
+import '../../providers/debt_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../widgets/transaction_card.dart';
 import '../../widgets/summary_widgets.dart';
@@ -42,9 +43,9 @@ class DashboardScreen extends StatelessWidget {
         catBreakdown.values.fold(0.0, (a, b) => a + b);
 
     // Debt summary (Feature 3)
-    final totalOwe = debtP.iOwe.fold(0.0, (s, d) => s + d.amount);
+    final totalOwe = debtP.totalIOwe;
     final totalOwed =
-        debtP.owedToMe.fold(0.0, (s, d) => s + d.amount);
+        debtP.totalOwedToMe;
     final netDebt = totalOwed - totalOwe;
 
     return Scaffold(

@@ -97,4 +97,45 @@ class NotificationService {
     }
     return scheduled;
   }
+  // closing brace moved to end
+
+  // ─── Scheduled Export Reminder ────────────────────────────────
+  static const _exportReminderId = 3;
+
+  static Future<void> scheduleExportReminder(
+      int hour, int minute, String frequency) async {
+    try {
+      await _plugin.cancel(_exportReminderId);
+      final scheduledDate = _nextInstanceOfTime(hour, minute);
+
+      DateTimeComponents repeat;
+      switch (frequency) {
+        case 'Daily':
+          repeat = DateTimeComponents.time;
+          break;
+        case 'Weekly':
+          repeat = DateTimeComponents.dayOfWeekAndTime;
+          break;
+        default: // Monthly
+          repeat = DateTimeComponents.dayOfMonthAndTime;
+      }
+
+      await _plugin.zonedSchedule(
+        _exportReminderId,
+        'MyFinance Export Ready 📊',
+        'Tap to generate and share your scheduled report.',
+        scheduledDate,
+        _details,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        matchDateTimeComponents: repeat,
+      );
+    } catch (e) {
+      debugPrint('scheduleExportReminder error: $e');
+    }
+  }
+
+  static Future<void> cancelExportReminder() async {
+    await _plugin.cancel(_exportReminderId);
+  }
+
 }

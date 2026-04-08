@@ -4,6 +4,8 @@ import '../../providers/transaction_provider.dart';
 import '../../providers/category_provider.dart';
 import '../../providers/budget_savings_debt_providers.dart';
 import '../../providers/settings_provider.dart';
+import '../../providers/debt_provider.dart';
+import '../../providers/credit_card_provider.dart';
 import '../../core/services/notification_service.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../transactions/transactions_screen.dart';
@@ -12,7 +14,6 @@ import '../budget/budget_screen.dart';
 import '../more/more_screen.dart';
 import '../transactions/add_transaction_screen.dart';
 import '../app_lock/app_lock_screen.dart';
-import '../../providers/credit_card_provider.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -25,6 +26,9 @@ class _MainScreenState extends State<MainScreen>
   int _currentIndex = 0;
   bool _isLocked = false;
   bool _initialized = false;
+  // Fix 2: Track app lifecycle to debounce lock triggers
+  AppLifecycleState? _lastState;
+  DateTime? _backgroundedAt;
 
   static const _pages = [
     DashboardScreen(),
@@ -47,35 +51,42 @@ class _MainScreenState extends State<MainScreen>
     super.dispose();
   }
 
-  // ─── Fix 2 & 3: App lifecycle → lock on background ───────────
+  // Fix 2: Only lock when app truly went to background (not during auth prompt)
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final settings = context.read<SettingsProvider>();
-    if (!settings.appLockEnabled) return;
+    if (!settings.appLockEnabled || !_initialized) return;
 
-    if (state == AppLifecycleState.resumed && !_isLocked) {
-      // Only lock after first init (so cold-start lock works too)
-      if (_initialized) setState(() => _isLocked = true);
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      _backgroundedAt = DateTime.now();
+      _lastState = state;
+    }
+
+    if (state == AppLifecycleState.resumed) {
+      // Only lock if we were truly backgrounded for > 3 seconds
+      // (prevents locking during biometric prompt itself)
+      if (_lastState == AppLifecycleState.paused &&
+          _backgroundedAt != null &&
+          DateTime.now().difference(_backgroundedAt!).inSeconds > 3) {
+        if (!_isLocked) {
+          setState(() => _isLocked = true);
+        }
+      }
+      _lastState = state;
     }
   }
 
   Future<void> _init() async {
     final settings = context.read<SettingsProvider>();
-    final cat = context.read<CategoryProvider>();
-    final txn = context.read<TransactionProvider>();
-    final bud = context.read<BudgetProvider>();
-    final sav = context.read<SavingsProvider>();
-    final dbt = context.read<DebtProvider>();
-
-    await cat.loadCategories();
-    await txn.loadAll();
+    await context.read<CategoryProvider>().loadCategories();
+    await context.read<TransactionProvider>().loadAll();
     final now = DateTime.now();
-    await bud.loadBudgets(now.month, now.year);
-    await sav.loadGoals();
-    await dbt.loadDebts();
+    await context.read<BudgetProvider>().loadBudgets(now.month, now.year);
+    await context.read<SavingsProvider>().loadGoals();
+    await context.read<DebtProvider>().loadAll();
     await context.read<CreditCardProvider>().loadCards();
 
-    // Schedule daily reminder if enabled
     if (settings.dailyReminder) {
       await NotificationService.scheduleDailyReminder(
         settings.reminderTime.hour,
@@ -84,50 +95,51 @@ class _MainScreenState extends State<MainScreen>
     }
 
     if (!mounted) return;
+    _initialized = true;
 
-    // Show app lock on cold start
+    // Show lock on cold start
     if (settings.appLockEnabled) {
       setState(() => _isLocked = true);
     }
-    _initialized = true;
   }
 
-  void _onUnlocked() => setState(() => _isLocked = false);
+  void _onUnlocked() {
+    setState(() => _isLocked = false);
+    _backgroundedAt = null;
+    _lastState = AppLifecycleState.resumed;
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Fix 2&3: Overlay lock screen on top of everything
     if (_isLocked) {
       return AppLockScreen(onAuthenticated: _onUnlocked);
     }
 
     return Scaffold(
       body: IndexedStack(index: _currentIndex, children: _pages),
+      // Fix 1: Use endFloat so FAB never overlaps nav bar labels
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute(
-              builder: (_) => const AddTransactionScreen()),
+          MaterialPageRoute(builder: (_) => const AddTransactionScreen()),
         ),
         icon: const Icon(Icons.add),
         label: const Text('Add'),
         heroTag: 'main_fab',
       ),
-      floatingActionButtonLocation:
-          FloatingActionButtonLocation.centerDocked,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
-        onDestinationSelected: (i) =>
-            setState(() => _currentIndex = i),
+        onDestinationSelected: (i) => setState(() => _currentIndex = i),
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home),
-            label: 'Home',         // Fix 1: shorter labels
+            label: 'Home',
           ),
           NavigationDestination(
             icon: Icon(Icons.receipt_long_outlined),
             selectedIcon: Icon(Icons.receipt_long),
-            label: 'Transactions', // Fix 1: font size set in theme
+            label: 'Transactions',
           ),
           NavigationDestination(
             icon: Icon(Icons.bar_chart_outlined),

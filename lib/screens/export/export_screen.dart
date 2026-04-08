@@ -10,6 +10,7 @@ import 'package:excel/excel.dart';
 import '../../providers/transaction_provider.dart';
 import '../../providers/category_provider.dart';
 import '../../providers/budget_savings_debt_providers.dart';
+import '../../providers/debt_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../models/transaction_model.dart';
 import '../../models/models.dart';
@@ -292,11 +293,13 @@ class _ExportScreenState extends State<ExportScreen> {
       _excelRow(summarySheet, row, ['Type', 'Person', 'Amount'],
           isHeader: true);
       row++;
-      for (final d in debtP.debts.where((d) => !d.isSettled)) {
+      for (final p in debtP.people) {
+        final nb = debtP.netBalance(p.id);
+        if (nb == 0) continue;
         _excelRow(summarySheet, row, [
-          d.type == 'owe' ? 'I Owe' : 'Owed to Me',
-          d.personName,
-          '$currency${d.amount.toStringAsFixed(2)}',
+          nb > 0 ? 'Owed to Me' : 'I Owe',
+          p.name,
+          '$currency${nb.abs().toStringAsFixed(2)}',
         ]);
         row++;
       }

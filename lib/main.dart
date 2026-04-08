@@ -10,8 +10,10 @@ import 'providers/settings_provider.dart';
 import 'providers/transaction_provider.dart';
 import 'providers/category_provider.dart';
 import 'providers/budget_savings_debt_providers.dart';
+import 'providers/debt_provider.dart';
 import 'providers/sub_category_provider.dart';
 import 'providers/credit_card_provider.dart';
+import 'providers/auth_provider.dart';
 import 'app.dart';
 
 Future<void> main() async {
@@ -24,7 +26,7 @@ Future<void> main() async {
     DeviceOrientation.landscapeRight,
   ]);
 
-  // Timezone initialization (required for scheduled notifications)
+  // Timezone init
   tz.initializeTimeZones();
   try {
     final localTz = await FlutterTimezone.getLocalTimezone();
@@ -33,13 +35,14 @@ Future<void> main() async {
     tz_zone.setLocalLocation(tz_zone.getLocation('UTC'));
   }
 
-  // Notification setup
+  // Notifications
   await NotificationService.init();
 
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => SettingsProvider()..load()),
+        ChangeNotifierProvider(create: (_) => AuthProvider()..init()),
         ChangeNotifierProvider(create: (_) => CategoryProvider()),
         ChangeNotifierProvider(create: (_) => TransactionProvider()),
         ChangeNotifierProvider(create: (_) => BudgetProvider()),

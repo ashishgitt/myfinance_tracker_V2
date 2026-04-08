@@ -376,3 +376,111 @@ class CreditCardTransactionModel {
         createdAt: m['created_at'] as String,
       );
 }
+
+// ─── Person (Khatabook-style debt) ────────────────────────────────────────────
+class PersonModel {
+  final String id;
+  final String name;
+  final String? phone;
+  final String? notes;
+  final String createdAt;
+
+  PersonModel({
+    required this.id,
+    required this.name,
+    this.phone,
+    this.notes,
+    required this.createdAt,
+  });
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'name': name,
+        'phone': phone,
+        'notes': notes,
+        'created_at': createdAt,
+      };
+
+  factory PersonModel.fromMap(Map<String, dynamic> m) => PersonModel(
+        id: m['id'] as String,
+        name: m['name'] as String,
+        phone: m['phone'] as String?,
+        notes: m['notes'] as String?,
+        createdAt: m['created_at'] as String,
+      );
+
+  PersonModel copyWith({
+    String? id, String? name, String? phone, String? notes, String? createdAt,
+  }) =>
+      PersonModel(
+        id: id ?? this.id,
+        name: name ?? this.name,
+        phone: phone ?? this.phone,
+        notes: notes ?? this.notes,
+        createdAt: createdAt ?? this.createdAt,
+      );
+}
+
+// ─── Debt Transaction ─────────────────────────────────────────────────────────
+class DebtTransactionModel {
+  final String id;
+  final String personId;
+  final double amount;
+  /// 'lent' | 'borrowed' | 'received' | 'paid'
+  final String type;
+  final String date;
+  final String? note;
+  final String? receiptImage;
+  final String createdAt;
+
+  DebtTransactionModel({
+    required this.id,
+    required this.personId,
+    required this.amount,
+    required this.type,
+    required this.date,
+    this.note,
+    this.receiptImage,
+    required this.createdAt,
+  });
+
+  bool get isCredit => type == 'lent' || type == 'received';
+  // From "I" perspective:
+  // lent → I gave money → positive for "owed to me"
+  // received → they paid back → reduces what they owe me
+  // borrowed → they gave me → positive for "I owe"
+  // paid → I paid back → reduces what I owe
+
+  double get signedAmount {
+    switch (type) {
+      case 'lent':     return amount;   // increases what they owe me
+      case 'received': return -amount;  // decreases what they owe me
+      case 'borrowed': return amount;   // increases what I owe
+      case 'paid':     return -amount;  // decreases what I owe
+      default:         return amount;
+    }
+  }
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'person_id': personId,
+        'amount': amount,
+        'type': type,
+        'date': date,
+        'note': note,
+        'receipt_image': receiptImage,
+        'created_at': createdAt,
+      };
+
+  factory DebtTransactionModel.fromMap(Map<String, dynamic> m) =>
+      DebtTransactionModel(
+        id: m['id'] as String,
+        personId: m['person_id'] as String,
+        amount: (m['amount'] as num).toDouble(),
+        type: m['type'] as String,
+        date: m['date'] as String,
+        note: m['note'] as String?,
+        receiptImage: m['receipt_image'] as String?,
+        createdAt: m['created_at'] as String,
+      );
+}
