@@ -59,11 +59,13 @@ static Future<void> scheduleDailyReminder(
       "Don't forget to log your transactions today!",
       scheduledDate,
       _details,
+
       androidScheduleMode:
           AndroidScheduleMode.inexactAllowWhileIdle,
+
       matchDateTimeComponents: DateTimeComponents.time,
 
-      // ✅ ADD THIS LINE (FIX)
+      // ✅ REQUIRED PARAM (THIS FIXES YOUR ERROR)
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
     );
@@ -71,6 +73,7 @@ static Future<void> scheduleDailyReminder(
     debugPrint('scheduleDailyReminder error: $e');
   }
 }
+
 
 
   static Future<void> cancelDailyReminder() async {
